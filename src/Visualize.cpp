@@ -85,6 +85,13 @@ else
 				      PCL_ERROR("Couldn't read the file \n");
 				      return (-1);
 				    }
+
+//---------------------------------------------------------------
+		pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
+		  sor.setInputCloud (cloud2);
+		  sor.setLeafSize (0.03f, 0.03f, 0.03f);
+		  sor.filter (*cloud2);
+//---------------------------------------------------------------
 		labels = ReadFileToVector(argv[3]);
 		IntPoints = ReadFileToVector(argv[4]);
 
@@ -94,6 +101,7 @@ else
 			cloud2->points[i].rgba = 255;
 */
 		int NofPositive = 0;
+		int NofNegative = 0;
 		for(int i = 0;i < (int)labels.size(); i++)
 			{
 				//std::cout<<labels.size()<<std::endl;
@@ -102,8 +110,18 @@ else
 				if(labels[i] > 0)
 				{
 					cloud2->points[IntPoints[i]].r = 255;
-					cout<<"point "<<IntPoints[i]<<" is set to 200"<<endl;
+					cloud2->points[IntPoints[i]].g = 255;
+					cloud2->points[IntPoints[i]].b = 255;
+					cout<<"point "<<IntPoints[i]<<" is set to white"<<endl;
 					NofPositive++;
+				}
+				else
+				{
+					cloud2->points[IntPoints[i]].r = 0;
+					cloud2->points[IntPoints[i]].g = 255;
+					cloud2->points[IntPoints[i]].b = 255;
+					NofNegative++;
+
 				}
 			}
 		cout<<NofPositive <<"Points out of "<< cloud2->points.size()<<" were positive."<<endl;

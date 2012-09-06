@@ -27,8 +27,10 @@ int main(int argc, char **argv)
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
 
 
-  float B_Radius = 0.02;//radius of the querypoint's blob
-  float S_Radius = 0.10;//Radius of the sphere to search object point in. It would depend on the object class
+  float B_Radius = 0.15;//Radius of the querypoint's blob
+  float Voxel_Radius = (4/3) * B_Radius;//Radius used for voxel downsample.
+  float S_Radius = Voxel_Radius + 0.02;//Radius of the sphere to search object point in. It would depend on the object class
+  //The added Offset is just to make sure that the voxeled point is inside the sphere
 
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
@@ -94,7 +96,8 @@ int main(int argc, char **argv)
   // Create the filtering object: downsample the dataset using a leaf size of 3cm
   pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
   sor.setInputCloud (Cloud_labeled);
-  sor.setLeafSize (0.03f, 0.03f, 0.03f);
+  //sor.setLeafSize (0.03f, 0.03f, 0.03f);
+  sor.setLeafSize (Voxel_Radius, Voxel_Radius, Voxel_Radius);
   sor.filter (*Cloud_Filtered);
   
   if(pcl::io::savePCDFileASCII("Downsampled.pcd",*Cloud_Filtered) == -1)

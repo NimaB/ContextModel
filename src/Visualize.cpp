@@ -62,8 +62,9 @@ int main(int argc, char **argv) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBL>);
 	pcl::PointCloud<pcl::Normal>::Ptr cloud_normal (new pcl::PointCloud<pcl::Normal>);
-    std::vector<float> labels;
-    std::vector<float> IntPoints;
+//    std::vector<float> labels;
+    std::vector<float> ScoreList;//Here the computed score for each point is saved
+//    std::vector<float> IntPoints;
 if(atoi(argv[1]) == 1)
 {
 	if ((pcl::io::loadPCDFile(argv[2], *cloud) || (pcl::io::loadPCDFile(argv[3], *cloud_normal))) == -1)
@@ -80,65 +81,55 @@ else
 	if(atoi(argv[1]) == 2)
 	{
 
+		std::cout<<"loading the pointcloud ..."<<std::endl;
 		if ((pcl::io::loadPCDFile(argv[2], *cloud2)) == -1)
 				    {
-				      PCL_ERROR("Couldn't read the file \n");
+				      PCL_ERROR("Couldn't read the pointcloud file \n");
 				      return (-1);
 				    }
 
 //---------------------------------------------------------------
+		std::cout<<"Down sampling the pointcloud ..."<<std::endl;
 		pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
 		  sor.setInputCloud (cloud2);
 		  sor.setLeafSize (0.03f, 0.03f, 0.03f);
 		  sor.filter (*cloud2);
 //---------------------------------------------------------------
-		labels = ReadFileToVector(argv[3]);
-		IntPoints = ReadFileToVector(argv[4]);
+//		labels = ReadFileToVector(argv[3]);
+//		IntPoints = ReadFileToVector(argv[4]);
 
-		//here we initialize all labels to 255
-		/*for (size_t i =0; i < cloud2->size(); i++)
-			//cloud2->points[i].label = 255;
-			cloud2->points[i].rgba = 255;
-*/
+		  std::cout<<"loading the Score List ..."<<std::endl;
+		  ScoreList = ReadFileToVector(argv[3]);
+
 		int NofPositive = 0;
 		int NofNegative = 0;
-		for(int i = 0;i < (int)labels.size(); i++)
+
+		for(size_t i = 0;i < cloud2->points.size(); i++)
+		{
+			std::cout<<"test i = "<<i<<std::endl;
+			cloud2->points[i].label = 255;
+			std::cout<<"test label "<<i<<std::endl;
+			if(ScoreList[i] > 0)
 			{
-				//std::cout<<labels.size()<<std::endl;
-				std::cout<<labels[i]<<"   "<<IntPoints[i]<<endl;
-				//if(labels[i] == 1)
-				if(labels[i] > 0)
-				{
-					cloud2->points[IntPoints[i]].r = 255;
-					cloud2->points[IntPoints[i]].g = 255;
-					cloud2->points[IntPoints[i]].b = 255;
-					cout<<"point "<<IntPoints[i]<<" is set to white"<<endl;
-					NofPositive++;
-				}
-				else
-				{
-					cloud2->points[IntPoints[i]].r = 0;
-					cloud2->points[IntPoints[i]].g = 255;
-					cloud2->points[IntPoints[i]].b = 255;
-					NofNegative++;
-
-				}
+				cloud2->points[i].r = 255 - ScoreList[i];
+				NofPositive++;
 			}
-		cout<<NofPositive <<"Points out of "<< cloud2->points.size()<<" were positive."<<endl;
+			else
+				NofNegative++;
 
+			std::cout<<"score list"<<i<<":"<<ScoreList[i]<<"label"<<cloud2->points[i].label<<std::endl;
+			}
+		cout<<NofPositive <<" Points out of "<< cloud2->points.size()<<" were positive."<<endl;
+
+		std::cout<<"Writing the resulting pointcloud ..."<<std::endl;
 		if(pcl::io::savePCDFileASCII("Focused3.pcd",*cloud2) == -1)
 		  				 {
 		  					 PCL_ERROR("Focused save fail!");
 		  				 }
-		//clock_t start = clock();
+
+		std::cout<<"Visualizing the pointcloud ..."<<std::endl;
 		Vis(cloud2);
-		//printf("Time elapsed: %f\n", (((double)clock() - start) *100)/ CLOCKS_PER_SEC);
-		//pcl::visualization::PCLVisualizer vie("test");
-		//vie.addPointCloud( cloud2);
-		// while(!vie.wasStopped())
-		  //{
-			//  vie.spinOnce();
-		  //}
+
 		}
 	else
 		cerr<<"First argument should be either 1:cloud+normal or 2:result visulization!";

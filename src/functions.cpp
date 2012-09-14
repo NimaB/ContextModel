@@ -111,7 +111,7 @@ std::vector<float> ReadFileToVector(string Fname)
 		myFile.close();
 
 	}
-	else std::cerr<<"Unable to open the file!"<<endl;
+	else std::cerr<<"Unable to open the file"<<Fname<<"!"<<endl;
 	return result;
 }
 /*std::vector<std::vector<float> > ReadFileToVector(string Fname)

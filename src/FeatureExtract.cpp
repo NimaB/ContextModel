@@ -12,7 +12,7 @@ int main(int argc, char **argv)
   //Fifth is path of the data file to save feature vector in
   //Sixth  is the path of the data file to save labels of samples.
   //Seventh  is the path of the TFPcloud
-
+  
   //cloud is the input cloud with the point type PointXYZ
   //pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud (new pcl::PointCloud<pcl::PointXYZ>);
   //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
@@ -22,16 +22,16 @@ int main(int argc, char **argv)
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
-
+  
   //cloud for Test with Full Points according the min max of the original cloud
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
-
-
+  
+  
   float B_Radius = 0.15;//Radius of the querypoint's blob
   float Voxel_Radius = (4/3) * B_Radius;//Radius used for voxel downsample.
   float S_Radius = Voxel_Radius + 0.02;//Radius of the sphere to search object point in. It would depend on the object class
   //The added Offset is just to make sure that the voxeled point is inside the sphere
-
+  
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
   VectorXf FVector;
@@ -63,9 +63,9 @@ int main(int argc, char **argv)
   
   
   InterestPoints.resize(2);
-//----------------------------------------
+  //----------------------------------------
   //Set operation type flag
-
+  
   if(atoi(argv[1]) == 1)
     TofOperation = "train";
   //cout<<"train"<<endl;
@@ -74,23 +74,23 @@ int main(int argc, char **argv)
       TofOperation = "test";
   //cout<<"test"<<endl;
   cout<<"type:"<<TofOperation<<endl;
- //----------------------------------------
+  //----------------------------------------
   /*
-  if(TofOperation == "train")
+    if(TofOperation == "train")
     {
-      for (size_t i =0; i < Cloud_labeled->points.size() ; i++)
-	{
-  	  if(Cloud_labeled->points[i].label == 1)
-	    {
-	      cerr<<"The center selected index is : "<< i <<endl;
-	      BlobExtract(Cloud_labeled->points[i],Cloud_labeled,Cloud_Norm,0.40,Cloud_labeled,Cloud_Norm);
-	      if(pcl::io::savePCDFileASCII("Focused.pcd",*Cloud_labeled) == -1)
-		{
-		  PCL_ERROR("Focused save fail!");
-		}
-	      break;
-	    }
-	}
+    for (size_t i =0; i < Cloud_labeled->points.size() ; i++)
+    {
+    if(Cloud_labeled->points[i].label == 1)
+    {
+    cerr<<"The center selected index is : "<< i <<endl;
+    BlobExtract(Cloud_labeled->points[i],Cloud_labeled,Cloud_Norm,0.40,Cloud_labeled,Cloud_Norm);
+    if(pcl::io::savePCDFileASCII("Focused.pcd",*Cloud_labeled) == -1)
+    {
+    PCL_ERROR("Focused save fail!");
+    }
+    break;
+    }
+    }
     }*/
   //--------------------------------------------------------------
   // Create the filtering object: downsample the dataset using a leaf size of 3cm
@@ -101,26 +101,26 @@ int main(int argc, char **argv)
   sor.filter (*Cloud_Filtered);
   
   if(pcl::io::savePCDFileASCII("Downsampled.pcd",*Cloud_Filtered) == -1)
-  	 			 {
-  	 				 PCL_ERROR("Cloud2 save fail!");
-  	 			 }
-
+    {
+      PCL_ERROR("Cloud2 save fail!");
+    }
+  
   cerr<<"Numer of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
   //---------------------------------------------------------------
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
   if(TofOperation == "test")
-  {
-
-	  if (pcl::io::loadPCDFile(argv[7], *TFPcloud) == -1)
-	     {
-	       PCL_ERROR("Couldn't read the file \n");
-	       return (-1);
-	     }
-
-  }
-
+    {
+      
+      if (pcl::io::loadPCDFile(argv[7], *TFPcloud) == -1)
+	{
+	  PCL_ERROR("Couldn't read the file \n");
+	  return (-1);
+	}
+      
+    }
+  
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
@@ -132,15 +132,15 @@ int main(int argc, char **argv)
 	  BlobExtract(QPoint,Cloud_labeled,Cloud_Norm,B_Radius,Cloud_Blob,Cloud_Blob_Norm);
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
-		  if(TofOperation == "train")
+	      if(TofOperation == "train")
+		{
+		  SBlobInd = BlobExtract(QPoint,Cloud_Filtered,S_Radius,Search_Cloud);
+		}
+	      else
+		if(TofOperation == "test")
 		  {
-	      SBlobInd = BlobExtract(QPoint,Cloud_Filtered,S_Radius,Search_Cloud);
+		    SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
 		  }
-		  else
-			  if(TofOperation == "test")
-			  {
-				  SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
-			  }
 	      //cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
 	      //cout<<"search size: "<<Search_Cloud->points.size()<<endl;
 	      
@@ -200,7 +200,7 @@ int main(int argc, char **argv)
   if(TofOperation == "train")
     cout <<"Positive Samples :"<<PosSample<<endl<<"Negative Samles: " << NegSample << endl<<
       "No Class : "<< Noclass<<endl;
-
+  
   return 0;
 }//end of main
 

@@ -11,7 +11,9 @@ int main(int argc, char **argv)
   //Fourth is the path of the file to keep interest point list
   //Fifth is path of the data file to save feature vector in
   //Sixth  is the path of the data file to save labels of samples.
-  //Seventh  is the path of the TFPcloud
+  //Seventh is the path of FullTrainDataset
+  //eighth is the path of FullTrainDataset labels
+  //ninth   is the path of the TFPcloud
   
   //cloud is the input cloud with the point type PointXYZ
   //pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud (new pcl::PointCloud<pcl::PointXYZ>);
@@ -42,6 +44,7 @@ int main(int argc, char **argv)
   int PosSample = 0;
   int NegSample = 0;
   int Noclass = 0;
+
   vector<int> InterestPoints;//This is a vector of length 2, which in each iteration keeps the index of the QPoint
   //and OPoint. InterestPoints = [QPoint,OPoint]
   
@@ -75,7 +78,7 @@ int main(int argc, char **argv)
   //cout<<"test"<<endl;
   cout<<"type:"<<TofOperation<<endl;
   //----------------------------------------
-  /*
+  /*Focuses the pointcloud to surrounding the object
     if(TofOperation == "train")
     {
     for (size_t i =0; i < Cloud_labeled->points.size() ; i++)
@@ -113,7 +116,7 @@ int main(int argc, char **argv)
   if(TofOperation == "test")
     {
       
-      if (pcl::io::loadPCDFile(argv[7], *TFPcloud) == -1)
+      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
 	{
 	  PCL_ERROR("Couldn't read the file \n");
 	  return (-1);
@@ -185,6 +188,11 @@ int main(int argc, char **argv)
 		  WtoFile(CofSample,FVector,OverWrite,argv[5],argv[6],DaFiFormat);
 		  WtoFile(InterestPoints,OverWrite,argv[4]);
 		  
+		  //Here we are saving a train dataset with samples from all clouds for one object class.
+		  if (argc>8)
+		  WtoFile(CofSample,FVector,0,argv[7],argv[8],DaFiFormat);
+		  else
+			  cerr<<"Full train dataset is not being saved! No path for it is provided.*argc="<<argc<<endl;
 		}
 	    }
 	  

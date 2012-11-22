@@ -13,24 +13,27 @@ int main(int argc, char **argv)
   //Sixth  is the path of the data file to save labels of samples.
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
-  //ninth   is the path of the TFPcloud
+  //REMOVED:ninth   is the path of the TFPcloud
+	//Ninth would be the path for cloud filtered 2
   
   //cloud is the input cloud with the point type PointXYZ
   //pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud (new pcl::PointCloud<pcl::PointXYZ>);
   //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_labeled (new pcl::PointCloud<pcl::PointXYZRGBL>);
-  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered (new pcl::PointCloud<pcl::PointXYZRGBL>);
+  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered (new pcl::PointCloud<pcl::PointXYZRGBL>);//this one is for qpoint
+  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered2 (new pcl::PointCloud<pcl::PointXYZRGBL>);//This one is for opoints
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
   
   //cloud for Test with Full Points according the min max of the original cloud
-  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
+  //pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
   
   
   float B_Radius = 0.15;//Radius of the querypoint's blob
   float Voxel_Radius = (4/3) * B_Radius;//Radius used for voxel downsample.
+  float Voxel_Radius2 = B_Radius;
   float S_Radius = Voxel_Radius + 0.02;//Radius of the sphere to search object point in. It would depend on the object class
   //The added Offset is just to make sure that the voxeled point is inside the sphere
   
@@ -54,7 +57,7 @@ int main(int argc, char **argv)
       PCL_ERROR("Couldn't read the file \n");
       return (-1);
     }
-  cerr<<"Numer of points in the input cloud_labeled: "<< Cloud_labeled->size()<<endl;
+  cerr<<"Number of points in the input cloud_labeled: "<< Cloud_labeled->size()<<endl;
   
   //Loading input pointcloud's Normals
   if (pcl::io::loadPCDFile(argv[3], *Cloud_Norm) == -1)
@@ -62,7 +65,7 @@ int main(int argc, char **argv)
       PCL_ERROR("Couldn't read the file \n");
       return (-1);
     }
-  cerr<<"Numer of points in the input cloud_Norm: "<< Cloud_Norm->size()<<endl;
+  cerr<<"Number of points in the input cloud_Norm: "<< Cloud_Norm->size()<<endl;
   
   
   InterestPoints.resize(2);
@@ -103,26 +106,31 @@ int main(int argc, char **argv)
   sor.setLeafSize (Voxel_Radius, Voxel_Radius, Voxel_Radius);
   sor.filter (*Cloud_Filtered);
   
-  if(pcl::io::savePCDFileASCII("Downsampled.pcd",*Cloud_Filtered) == -1)
+  sor.setLeafSize (Voxel_Radius2, Voxel_Radius2, Voxel_Radius2);
+  sor.filter(*Cloud_Filtered2);
+
+  //In case the point of interest for us is OPoint we save Cloud_Filtered2, if it is QPoint then
+    // Cloud_Filtered should be saved for later result visualization.
+  if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered2) == -1)
     {
       PCL_ERROR("Cloud2 save fail!");
     }
   
-  cerr<<"Numer of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
+  cerr<<"Number of points in the input cloud_filtered: "<< Cloud_Filtered2->size()<<endl;
   //---------------------------------------------------------------
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
-  if(TofOperation == "test")
-    {
-      
-      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
-	{
-	  PCL_ERROR("Couldn't read the file \n");
-	  return (-1);
-	}
-      
-    }
+//  if(TofOperation == "test")
+//    {
+//
+//      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
+//	{
+//	  PCL_ERROR("Couldn't read the file \n");
+//	  return (-1);
+//	}
+//
+//    }
   
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
@@ -135,15 +143,15 @@ int main(int argc, char **argv)
 	  BlobExtract(QPoint,Cloud_labeled,Cloud_Norm,B_Radius,Cloud_Blob,Cloud_Blob_Norm);
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
-	      if(TofOperation == "train")
-		{
-		  SBlobInd = BlobExtract(QPoint,Cloud_Filtered,S_Radius,Search_Cloud);
-		}
-	      else
-		if(TofOperation == "test")
-		  {
-		    SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
-		  }
+	      //if(TofOperation == "train")
+		//{
+		  SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
+		//}
+	      //else
+		//if(TofOperation == "test")
+		  //{
+		    //SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
+		  //}
 	      //cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
 	      //cout<<"search size: "<<Search_Cloud->points.size()<<endl;
 	      
@@ -206,7 +214,7 @@ int main(int argc, char **argv)
     }
   
   if(TofOperation == "train")
-    cout <<"Positive Samples :"<<PosSample<<endl<<"Negative Samles: " << NegSample << endl<<
+    cout <<"Positive Samples :"<<PosSample<<endl<<"Negative Samples: " << NegSample << endl<<
       "No Class : "<< Noclass<<endl;
   
   return 0;

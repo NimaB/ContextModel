@@ -53,7 +53,7 @@ void CloudGenerate (float MinX,float MaxX,float MinY,float MaxY,float MinZ,float
 {
   CloudOut->height = abs(ceil((MaxX - MinX)/step));
   CloudOut->width  = abs(ceil((MaxY - MinY)/step) * ceil((MaxZ - MinZ)/step));
-  cout<<CloudOut->height<<" "<<CloudOut->width;
+  cout<<CloudOut->height<<" "<<CloudOut->width<<endl;
   
   CloudOut->points.resize(CloudOut->height * CloudOut->width);
   int ind = 0;
@@ -71,6 +71,65 @@ void CloudGenerate (float MinX,float MaxX,float MinY,float MaxY,float MinZ,float
 	}
     }
   
+}
+//This function generates a small cloud around the given center with the given radius. NumofLayers shows layers number around the center.
+void CloudGenerate (pcl::PointXYZRGBL CloudCenter,float CloudRadius,int NumofLayers,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr CloudOut)
+{
+	CloudOut->height = 1;//(NumofLayers * 2) + 1;//includes the center point.
+	CloudOut->width = ((NumofLayers * 2) + 1) * ((NumofLayers * 2) + 1);
+	cout<<CloudOut->height<<" "<<CloudOut->width<<endl;
+
+	CloudOut->points.resize(CloudOut->height * CloudOut->width);
+
+	float step = CloudRadius / NumofLayers;
+	int ind = 0;
+	for (float i = -CloudRadius; i <= CloudRadius; i+= step)
+			{
+			CloudOut->points[ind].x = CloudCenter.x + i;
+			CloudOut->points[ind].y = CloudCenter.y;
+			CloudOut->points[ind].z = CloudCenter.z;
+			ind++;
+			if(i != 0)
+			{
+				CloudOut->points[ind].x = CloudCenter.x + i;
+				CloudOut->points[ind].y = CloudCenter.y + i;
+				CloudOut->points[ind].z = CloudCenter.z;
+				ind++;
+			}
+
+			}
+		for (float j = -CloudRadius; j <= CloudRadius; j+= step)
+					{
+					if(j != 0)
+						{
+						CloudOut->points[ind].x = CloudCenter.x;
+						CloudOut->points[ind].y = CloudCenter.y + j;
+						CloudOut->points[ind].z = CloudCenter.z;
+						ind++;
+						CloudOut->points[ind].x = CloudCenter.x;
+						CloudOut->points[ind].y = CloudCenter.y + j;
+						CloudOut->points[ind].z = CloudCenter.z + j;
+						ind++;
+						}
+
+					}
+		for (float k = -CloudRadius; k <= CloudRadius; k+= step)
+							{
+							if(k != 0)
+								{
+								CloudOut->points[ind].x = CloudCenter.x;
+								CloudOut->points[ind].y = CloudCenter.y;
+								CloudOut->points[ind].z = CloudCenter.z + k;
+								ind++;
+								CloudOut->points[ind].x = CloudCenter.x + k;
+								CloudOut->points[ind].y = CloudCenter.y;
+								CloudOut->points[ind].z = CloudCenter.z + k;
+								ind++;
+								}
+
+
+							}
+
 }
 //-----------------------------------------------------------------------------------------
 void DownSample(pcl::PointCloud<pcl::PointXYZRGB>::Ptr in_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr out_cloud)

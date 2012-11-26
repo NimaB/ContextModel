@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	      PCL_ERROR("Couldn't read the file \n");
 	      return (-1);
 	    }
-	  cout<<"Numer of points in the input cloud_labeled: "<< Cloud_labeled->size()<<endl;
+	  cout<<"Number of points in the input cloud_labeled: "<< Cloud_labeled->size()<<endl;
 
 	  //Loading input pointcloud's Normals
 	  cout<<"Loading cloud Normals..."<<endl;

@@ -5,6 +5,7 @@
 
 int main(int argc, char **argv)
 {
+  
   //First argument is the choice between train or test
   //Second input argument is the path of the input pointcloud
   //Third is the path for the input cloud normals
@@ -14,10 +15,9 @@ int main(int argc, char **argv)
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
   //REMOVED:ninth   is the path of the TFPcloud
-	//Ninth would be the path for cloud filtered 2
+  //Ninth would be the path for cloud filtered 2
   
   //cloud is the input cloud with the point type PointXYZ
-  //pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud (new pcl::PointCloud<pcl::PointXYZ>);
   //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_labeled (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered (new pcl::PointCloud<pcl::PointXYZRGBL>);//this one is for qpoint
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
   int PosSample = 0;
   int NegSample = 0;
   int Noclass = 0;
-
+  
   vector<int> InterestPoints;//This is a vector of length 2, which in each iteration keeps the index of the QPoint
   //and OPoint. InterestPoints = [QPoint,OPoint]
   
@@ -80,24 +80,7 @@ int main(int argc, char **argv)
       TofOperation = "test";
   //cout<<"test"<<endl;
   cout<<"type:"<<TofOperation<<endl;
-  //----------------------------------------
-  /*Focuses the pointcloud to surrounding the object
-    if(TofOperation == "train")
-    {
-    for (size_t i =0; i < Cloud_labeled->points.size() ; i++)
-    {
-    if(Cloud_labeled->points[i].label == 1)
-    {
-    cerr<<"The center selected index is : "<< i <<endl;
-    BlobExtract(Cloud_labeled->points[i],Cloud_labeled,Cloud_Norm,0.40,Cloud_labeled,Cloud_Norm);
-    if(pcl::io::savePCDFileASCII("Focused.pcd",*Cloud_labeled) == -1)
-    {
-    PCL_ERROR("Focused save fail!");
-    }
-    break;
-    }
-    }
-    }*/
+  
   //--------------------------------------------------------------
   // Create the filtering object: downsample the dataset using a leaf size of 3cm
   pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
@@ -108,9 +91,9 @@ int main(int argc, char **argv)
   
   sor.setLeafSize (Voxel_Radius2, Voxel_Radius2, Voxel_Radius2);
   sor.filter(*Cloud_Filtered2);
-
+  
   //In case the point of interest for us is OPoint we save Cloud_Filtered2, if it is QPoint then
-    // Cloud_Filtered should be saved for later result visualization.
+  // Cloud_Filtered should be saved for later result visualization.
   if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered2) == -1)
     {
       PCL_ERROR("Cloud2 save fail!");
@@ -121,16 +104,16 @@ int main(int argc, char **argv)
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
-//  if(TofOperation == "test")
-//    {
-//
-//      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
-//	{
-//	  PCL_ERROR("Couldn't read the file \n");
-//	  return (-1);
-//	}
-//
-//    }
+  //  if(TofOperation == "test")
+  //    {
+  //
+  //      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
+  //	{
+  //	  PCL_ERROR("Couldn't read the file \n");
+  //	  return (-1);
+  //	}
+  //
+  //    }
   
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
@@ -144,14 +127,14 @@ int main(int argc, char **argv)
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
 	      //if(TofOperation == "train")
-		//{
-		  SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
-		//}
+	      //{
+	      SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
+	      //}
 	      //else
-		//if(TofOperation == "test")
-		  //{
-		    //SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
-		  //}
+	      //if(TofOperation == "test")
+	      //{
+	      //SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
+	      //}
 	      //cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
 	      //cout<<"search size: "<<Search_Cloud->points.size()<<endl;
 	      
@@ -198,9 +181,9 @@ int main(int argc, char **argv)
 		  
 		  //Here we are saving a train dataset with samples from all clouds for one object class.
 		  if (argc>8)
-		  WtoFile(CofSample,FVector,0,argv[7],argv[8],DaFiFormat);
+		    WtoFile(CofSample,FVector,0,argv[7],argv[8],DaFiFormat);
 		  else
-			  cerr<<"Full train dataset is not being saved! No path for it is provided.*argc="<<argc<<endl;
+		    cerr<<"Full train dataset is not being saved! No path for it is provided.*argc="<<argc<<endl;
 		}
 	    }
 	  
@@ -218,5 +201,6 @@ int main(int argc, char **argv)
       "No Class : "<< Noclass<<endl;
   
   return 0;
+  
 }//end of main
 

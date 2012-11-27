@@ -5,7 +5,6 @@
 
 int main(int argc, char **argv)
 {
-  
   //First argument is the choice between train or test
   //Second input argument is the path of the input pointcloud
   //Third is the path for the input cloud normals
@@ -15,27 +14,25 @@ int main(int argc, char **argv)
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
   //REMOVED:ninth   is the path of the TFPcloud
-  //Ninth would be the path for cloud filtered 2
+
   
   //cloud is the input cloud with the point type PointXYZ
   //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_labeled (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered (new pcl::PointCloud<pcl::PointXYZRGBL>);//this one is for qpoint
-  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Filtered2 (new pcl::PointCloud<pcl::PointXYZRGBL>);//This one is for opoints
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
   
-  //cloud for Test with Full Points according the min max of the original cloud
-  //pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
   
-  
-  float B_Radius = 0.15;//Radius of the querypoint's blob
-  float Voxel_Radius = (4/3) * B_Radius;//Radius used for voxel downsample.
-  float Voxel_Radius2 = B_Radius;
-  float S_Radius = Voxel_Radius + 0.02;//Radius of the sphere to search object point in. It would depend on the object class
-  //The added Offset is just to make sure that the voxeled point is inside the sphere
+#define B_Radius  0.15         //Radius of the querypoint's blob
+#define OPoint_Radius 0.04     //Radius for a sphere around each generated OPoints to look for
+                               //Actual annotated object points.
+float ObjRadius = 0.15;        // Approximate radius for object, here for Trash bin.
+float Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
+float S_Radius = 2 * ObjRadius;// Sphere around each quary point for generating candidate OPoints.
+int NumofLayers = 2;           // Number of layers of points for generated sphere.
   
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
@@ -89,46 +86,33 @@ int main(int argc, char **argv)
   sor.setLeafSize (Voxel_Radius, Voxel_Radius, Voxel_Radius);
   sor.filter (*Cloud_Filtered);
   
-  sor.setLeafSize (Voxel_Radius2, Voxel_Radius2, Voxel_Radius2);
-  sor.filter(*Cloud_Filtered2);
-  
   //In case the point of interest for us is OPoint we save Cloud_Filtered2, if it is QPoint then
   // Cloud_Filtered should be saved for later result visualization.
-  if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered2) == -1)
+  if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered) == -1)
     {
       PCL_ERROR("Cloud2 save fail!");
     }
   
-  cerr<<"Number of points in the input cloud_filtered: "<< Cloud_Filtered2->size()<<endl;
+  cerr<<"Number of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
   //---------------------------------------------------------------
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
-  //  if(TofOperation == "test")
-  //    {
-  //
-  //      if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
-  //	{
-  //	  PCL_ERROR("Couldn't read the file \n");
-  //	  return (-1);
-  //	}
-  //
-  //    }
-  
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
-      cerr<<"sample number: "<<i<<"out of "<<Cloud_Filtered->points.size()<<endl;
+      cerr<<"Query point number: "<<i<<"out of "<<Cloud_Filtered->points.size()<<endl;
       QPoint = Cloud_Filtered->points[i];
       if((QPoint.label != 1) || (TofOperation == "test")) // here we make sure that query point it self is not a part of an object.
 	{
     	  InterestPoints[0] = (int)i;
 	  BlobExtract(QPoint,Cloud_labeled,Cloud_Norm,B_Radius,Cloud_Blob,Cloud_Blob_Norm);
+
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
 	      //if(TofOperation == "train")
 	      //{
-	      SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
+	      //SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
 	      //}
 	      //else
 	      //if(TofOperation == "test")
@@ -137,34 +121,46 @@ int main(int argc, char **argv)
 	      //}
 	      //cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
 	      //cout<<"search size: "<<Search_Cloud->points.size()<<endl;
+	      CloudGenerate(QPoint,S_Radius,NumofLayers,Search_Cloud);
 	      
 	      for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
 		{
 		  OPoint = Search_Cloud->points[j];
-		  //cout<<"object point :"<<j<<OPoint<<endl;
-		  InterestPoints[1] = SBlobInd[(int)j];
+		  InterestPoints[1] = j;
+
 		  
 		  if (TofOperation == "train")
 		    {
-		      if(OPoint.label == 1)
-			{
-			  CofSample = 1;
-			  PosSample ++;
-			}
-		      else if(OPoint.label == 255)// the default value for the label is 255
-			{
-			  CofSample = -1;
-			  NegSample ++;
-			}
-		      else
-			{
-			  //cerr<<"There is more than two class!!!"<<endl;
-			  //cout<<"object point label = "<<OPoint.label<<endl;
-			  CofSample = -1;
-			  Noclass ++;
-			  //return(-1);
-			}
-		      //cout<<"class of sample is: "<<CofSample<<endl;
+//		      if(OPoint.label == 1)
+//			{
+//			  CofSample = 1;
+//			  PosSample ++;
+//			}
+//		      else if(OPoint.label == 255)// the default value for the label is 255
+//			{
+//			  CofSample = -1;
+//			  NegSample ++;
+//			}
+//		      else
+//			{
+//			  //cerr<<"There is more than two class!!!"<<endl;
+//			  //cout<<"object point label = "<<OPoint.label<<endl;
+//			  CofSample = -1;
+//			  Noclass ++;
+//			  //return(-1);
+//			}
+//		      //cout<<"class of sample is: "<<CofSample<<endl;
+			  if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
+			  {
+				  CofSample = 1;
+				  PosSample ++;
+			  }
+			  else
+			  {
+			  	  CofSample = -1;
+			  	  NegSample ++;
+			  }
+
 		    }
 		  
 		  FeatureExtract(Cloud_Blob,Cloud_Blob_Norm,OPoint,  &FVector);
@@ -201,6 +197,6 @@ int main(int argc, char **argv)
       "No Class : "<< Noclass<<endl;
   
   return 0;
-  
+
 }//end of main
 

@@ -1,0 +1,405 @@
+#include <iostream>
+#include<pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/filters/extract_indices.h>
+//#include </usr/include/pcl-1.5/pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/features/vfh.h>
+#include <pcl/features/integral_image_normal.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/common/common.h>//minmax3D
+#include  <pcl/registration/transforms.h>
+#include <fstream>
+
+using namespace std;
+using namespace Eigen;
+
+#define Lparam 0 // parameter for loading normals from a file
+// Euler angels
+#define ALFA  0
+#define BETHA (3*(PI/2)) + (PI/6)
+#define GAMA  0
+
+#define PI 3.14159265
+//#define OverWrite 0
+#define BPnTresh 5 // A threshold for cloud blob numer of points
+
+//-----------------------------------------------------------------------------------------
+//function for estimating the height of the sensor to use as an input for translation vector
+//in case we dont have the information about sensor's height with a weak assumption that the lowest point in the pointcloud is a point of the floor
+//so the floor is a part of the pointcloud.
+float SHEstimate(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in)
+{
+  
+  //Get MinMax3D of the pointcloud
+  
+  Eigen::Vector4f Min_pt;
+  Eigen::Vector4f Max_pt;
+  
+  pcl::getMinMax3D(*cloud_in,Min_pt,Max_pt);
+  
+  //	   std::cerr<<"X's Min and Max:" << Min_pt(0)<<","<<Max_pt(0) << endl;
+  //	   std::cerr<<"Y's Min and Max:" << Min_pt(1)<<","<<Max_pt(1) << endl;
+  //	   std::cerr<<"Z's Min and Max:" << Min_pt(2)<<","<<Max_pt(2) << endl<<endl;
+  
+  return(fabs(Min_pt(1)));
+}
+//-----------------------------------------------------------------------------------------
+//Function to write features and their class to a file as one line
+//cofsample shows the current samples class which is a positive or negative
+//overwrite is a boolean to choose if the file should be overwritten or not.
+void WtoFile(int cofsample,VectorXf features,bool overwrite,string data_filename,string label_filename)
+{
+  ofstream out;
+  ofstream out2;
+  if(overwrite)
+    {
+      cerr<<"overwritting"<<endl;
+      //out.open("test1.txt");
+      out.open(data_filename.c_str());
+      out2.open(label_filename.c_str());
+    }
+  else
+    {
+      cerr<<"Adding to existing file"<<endl;
+      //out.open("test1.txt",fstream::in | fstream::out | fstream::app);
+      out.open(data_filename.c_str(),fstream::in | fstream::out | fstream::app);
+      out2.open(label_filename.c_str(),fstream::in | fstream::out | fstream::app);
+    }
+  //out<<cofsample<<"    ";
+  out2<<cofsample<<"\n";
+  for(int i = 0;i < features.rows(); i++)
+    {
+      //if(features[i] != 0)
+      out<<i+1<<":"<<features[i]<<"  ";
+    }
+  out<<"\n";
+  //	ostream_iterator<std::string> output_iterator("test.txt", "\n");
+  //    copy(output_iterator);
+}
+
+//--------------------------------------------------------------------------------------
+//function Transfer Matrix
+Eigen::Matrix4f TMatrix(float alfa,float beta,float gamma,float Ztr)
+//In this function the transform matrix of the camera is made.using the rotation matrix for angels(alfa,beta and gamma) and translation vector of the camera origin in compare of the global origin
+{
+  Eigen::Matrix4f tmat;
+  tmat << cos(alfa)*cos(gamma)-cos(beta)*sin(alfa)*sin(gamma) ,  cos(gamma)*sin(alfa)+sin(gamma)*cos(alfa)*cos(beta) , sin(gamma)*sin(beta) , 0.0,
+    -cos(alfa)*sin(gamma)-cos(beta)*sin(alfa)*cos(gamma) , -sin(gamma)*sin(alfa)+cos(beta)* cos(alfa)*cos(gamma), cos(gamma)*sin(beta) , 0.0,
+    sin(beta)*sin(alfa)                                  , -sin(beta)*cos(alfa)                                 , cos(beta)            , Ztr,
+    1.0                                                  ,  1.0                                                 , 1.0                  , 0.0;
+  
+  return(tmat);
+}
+//pcl::transformPointCloud(*cloud_in,*cloud_out,TMatrix(ALFA,BETHA,GAMA,ZTR));
+
+//-----------------------------------------------------------------------------------
+//Function for Normal estimation
+void NormEst(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,pcl::PointCloud<pcl::Normal>::Ptr normals,bool load)
+{
+  if(load)
+    {
+      if(pcl::io::loadPCDFile<pcl::Normal> ("normals.pcd",*normals) == -1)
+	{
+	  PCL_ERROR("No file to read!");
+	  return ;
+	}
+    }
+  else
+    if(cloud_in->isOrganized())
+      {
+	// Using IntegralImages.
+	cout<<"Estimating Normals using Integral images"<<endl;
+	pcl::IntegralImageNormalEstimation<pcl::PointXYZ, pcl::Normal> Ine;
+	Ine.setNormalEstimationMethod(Ine.AVERAGE_3D_GRADIENT);
+	Ine.setMaxDepthChangeFactor(0.02f);
+	Ine.setNormalSmoothingSize(10.0f);
+	Ine.setInputCloud(cloud_in);
+	Ine.compute(*normals);
+	
+      }
+    else
+      {
+	//using normal method
+	cout<<"Estimating Normals using normal method"<<endl;
+	pcl::NormalEstimation<pcl::PointXYZ,pcl::Normal> ne;
+	ne.setInputCloud(cloud_in);
+	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+	ne.setSearchMethod(tree);
+	ne.setRadiusSearch(0.05);
+	ne.compute(*normals);
+      }
+  //write normals to a file
+  if(pcl::io::savePCDFileASCII("normals.pcd", *normals) == -1)
+    {
+      PCL_ERROR("save fail!");
+    }
+  
+}
+
+//-----------------------------------------------------------------------------------
+//function BlobExtract
+//Overloaded with point types PointXYZ and PointXYZRGB
+//Inputs: querypoint, input pointcloud, search radius
+//Outputs: output pointcloud
+
+//void BlobExtract(pcl::PointXYZ qpoint,pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,pcl::PointCloud<pcl::Normal> cloud_in_norm,float radius,pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out,pcl::PointCloud<pcl::Normal> cloud_out_norm)
+void BlobExtract(pcl::PointXYZ qpoint,pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,float radius,pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out)
+{
+  pcl::search::KdTree<pcl::PointXYZ> tree;
+  vector<int>   IdRadiusSearch;
+  vector<float> Sdistance;
+
+  tree.setInputCloud(cloud_in);
+  
+  if(tree.radiusSearch(qpoint,radius,IdRadiusSearch,Sdistance) > 0)
+    {
+      cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+    }
+  else
+    cerr<<"Not enough points in the neighborhood!"<<endl;
+
+  pcl::copyPointCloud(*cloud_in,IdRadiusSearch,*cloud_out);
+}
+void BlobExtract(pcl::PointXYZ qpoint,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,float radius,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_out)
+
+{
+  pcl::search::KdTree<pcl::PointXYZRGBL> tree;
+  vector<int>   IdRadiusSearch;
+  vector<float> Sdistance;
+  
+  tree.setInputCloud(cloud_in);
+  // Neighbors within specific radius
+  
+  //	cout << "Neighbors within radius search at (" << qpoint.x
+  //	            << " " << qpoint.y
+  //	            << " " << qpoint.z
+  //	            << ") with radius=" << radius << std::endl;
+  if(tree.radiusSearch(qpoint,radius,IdRadiusSearch,Sdistance) > 0)
+    {
+      cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+      //		 for (size_t i = 0; i < IdRadiusSearch.size (); ++i)
+      //		for (size_t i = 0; i < 10; ++i)
+      //		      std::cout << "    "  <<   cloud_in->points[ IdRadiusSearch[i] ].x
+      //		                << " " << cloud_in->points[ IdRadiusSearch[i] ].y
+      //		                << " " << cloud_in->points[ IdRadiusSearch[i] ].z
+      //		                << " (squared distance: " << Sdistance[i] << ")" << std::endl;
+      
+    }
+  else
+    cerr<<"Not enough points in the neighborhood!"<<endl;
+  
+  pcl::copyPointCloud(*cloud_in,IdRadiusSearch,*cloud_out);
+  
+  /*
+    pcl::ExtractIndices<pcl::PointXYZ> extract_points;
+    //pcl::ExtractIndices<pcl::Normal> extract_norm;
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
+    
+    inliers->set_indices_vec(IdRadiusSearch);
+    extract_points.setInputCloud(cloud_in);
+    extract_points.setIndices(inliers);
+    extract_points.setNegative(false);
+    extract_points.filter(*cloud_out);
+    
+    //extract_norm.setInputCloud(cloud_in_norm);
+    //extract_norm.setIndices(inliers);
+    //extract_norm.setNegative(false);
+    //extract_norm.filter(*cloud_out_norm);*/
+  
+}
+//-----------------------------------------------------------------------------------
+////Function Object Point Search
+//void ObjPtSearch(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,pcl::PointXYZ * objpoint)
+//{
+//	for(size_t i = 0; i < cloud_in->points.size(); ++i)
+//
+//}
+
+//-----------------------------------------------------------------------------------
+//In this function the query point and its neighborhood is given as a pointcloud with
+//the world's coordinate system and the detected point as a positive or negative example of
+//the object's point( witch would be used as the viewpoint)
+//inputs are: BlobIn, which is the blob of query point and its neighbors. VPoint, which is the
+// described viewpoint
+//output: FVector which is the resulting vector of features. [AngelOfView,AvHeight,VFH]
+//------------------------------------------------------------------------------------
+void FeatureExtract(pcl::PointCloud<pcl::PointXYZ>::Ptr blob_in, pcl::PointXYZRGBL opoint, VectorXf * fvector)
+{
+  pcl::PointCloud<pcl::Normal>::Ptr Blob_Norm (new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::VFHSignature308>::Ptr vfhs (new pcl::PointCloud<pcl::VFHSignature308> ());
+  
+  NormEst(blob_in,Blob_Norm,Lparam);//the boolean shows if it should load from a file or should estimate.
+  //---------------------------------------------------------
+  //estimating the angel between gravity vector and the vector from veiwpoint to query point (vp_p)
+  Vector4f GVector (0,1,0,0);
+  Vector4f BlobCenter,VP_P;
+  Vector4f vpoint;
+  
+  vpoint = opoint.getVector4fMap();
+  pcl::compute3DCentroid(*blob_in,BlobCenter);
+  VP_P = vpoint - BlobCenter;
+  VP_P.normalize();
+  
+  double AOfView = (GVector.dot(VP_P) + 1.0) * 0.5;
+  
+  //----------------------------------------------------------------
+  //Estimationg the average height of points in the input blob.
+  //As the pointcloud is transfered into world's coordinate we can assume points z as their height.
+  float AvHeight = 0;	int n_points = (int) blob_in->points.size();
+  for(int i = 0; i < n_points; ++i)
+    AvHeight = AvHeight + blob_in->points[i].z;
+  AvHeight = AvHeight/n_points;
+  
+  
+  // Create the VFH estimation class, and pass the input dataset+normals to it
+  
+  pcl::VFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::VFHSignature308> vfh;
+  vfh.setInputCloud (blob_in);
+  vfh.setInputNormals (Blob_Norm);
+  // Create an empty kdtree representation, and pass it to the FPFH estimation object.
+  // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+  //pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ> ());
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+  vfh.setSearchMethod (tree);
+  vfh.compute(*vfhs);
+  
+  //-----------------------------------------------------------------
+  
+  //---------------------------------------------------------------------
+  
+  
+  VectorXf temp,temp2(310);
+  temp = vfhs->getMatrixXfMap();
+  for(int i = 2; i < 310;i++)
+    temp2[i] = temp[i-2];
+  temp2[0] = AOfView;
+  temp2[1] = AvHeight;
+  //temp.rows() = 309;
+  //cerr<<"temp="<<temp2.rows()<<" "<<temp2;
+  *fvector = temp2;
+}
+
+//--------------------------------------------------------------------------------
+// Main Function
+
+int main(int argc, char **argv)
+{
+  //First input argument is the path of the input pointcloud
+  //Second is path of the data file to save feature vector in
+  //Third is the path of the data file to save labels of samples.
+  
+  //cloud is the input cloud with the point type PointXYZ
+  pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud (new pcl::PointCloud<pcl::PointXYZ>);
+  //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
+  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_labeled (new pcl::PointCloud<pcl::PointXYZRGBL>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud_Filtered (new pcl::PointCloud<pcl::PointXYZ>);
+  //pcl::PointCloud<pcl::Normal>::Ptr Cloud_Norm (new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
+  //pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
+  
+  float B_Radius = 0.05;//radius of the querypoint's blob
+  float S_Radius = 0.30;//Radius of the sphere to search object point in. It would depend on the object class
+  
+  pcl::PCDWriter writer;
+  VectorXf FVector;
+  pcl::PointXYZ QPoint;//query point
+  pcl::PointXYZRGBL OPoint;//object point
+  bool OverWrite;
+  int CofSample;
+  
+  //Read Pcd file
+  //if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/nims/ros_workspace/test2/table_scene_lms400.pcd", *Cloud) == -1)
+  //if (pcl::io::loadPCDFile<pcl::PointXYZ> (argv[1], *Cloud) == -1)
+  
+  if (pcl::io::loadPCDFile(argv[1], *Cloud_labeled) == -1)
+    {
+      PCL_ERROR("Couldn't read the file \n");
+      return (-1);
+    }
+  cerr<<"Numer of points in the input cloud_labeled: "<< Cloud_labeled->size()<<endl;
+  
+  pcl::copyPointCloud(*Cloud_labeled, *Cloud);
+  cerr<<"Numer of points in the input cloud: "<< Cloud->size()<<endl;
+  
+  //Transfering the pointcloud to the world's coordinate system (zero would be on the floor)
+  float a;
+  a = SHEstimate(Cloud);
+  
+  cout<<"sensor height estimated to be: "<< a<<endl;
+  
+  pcl::transformPointCloud(*Cloud,*Cloud,TMatrix(ALFA,BETHA,GAMA,a));
+  
+  cerr<<"Numer of points in the input cloud after transfer: "<< Cloud->size()<<endl;
+  
+  //--------------------------------------------------------------
+  // Create the filtering object: downsample the dataset using a leaf size of 3cm
+  pcl::VoxelGrid<pcl::PointXYZ> sor;
+  sor.setInputCloud (Cloud);
+  sor.setLeafSize (0.03f, 0.03f, 0.03f);
+  sor.filter (*Cloud_Filtered);
+  
+  cerr<<"Numer of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
+  
+  
+  //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
+  for (size_t i =0; i < Cloud_Filtered->points.size() ; ++i)
+    {
+      cerr<<"sample number: "<<i<<"out of "<<Cloud_Filtered->points.size()<<endl;
+      QPoint = Cloud_Filtered->points[i];
+      BlobExtract(QPoint,Cloud,B_Radius,Cloud_Blob);
+      
+      if ( Cloud_Blob->size() >= BPnTresh)
+	{
+	  BlobExtract(QPoint,Cloud_labeled,S_Radius,Search_Cloud);
+	  
+	  cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
+	  cout<<"search size: "<<Search_Cloud->points.size()<<endl;
+	  
+	  for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
+	    {
+	      OPoint = Search_Cloud->points[j];
+	      cout<<"object point :"<<j<<OPoint<<endl;
+
+	      if(CofSample != 1)
+		CofSample = 1;
+	      else
+		CofSample = -1;
+	      cout<<"class of sample is: "<<CofSample<<endl;
+	      FeatureExtract(Cloud_Blob,OPoint,  &FVector);
+	      cout<<"first element of feature vector is: "<< FVector[0]<<endl;
+	      //writing the vector to the file:
+	      if ((i ==0) && (j == 0))//just for the first iteration
+		OverWrite = 1;
+	      else
+		OverWrite = 0;
+	      WtoFile(CofSample,FVector,OverWrite,argv[2],argv[3]);
+	      
+	    }
+	  
+	}
+      else
+	{
+	  cerr<< "This query point is ignored as there is not enough points in its vicinity." <<endl;
+	}
+      
+      
+      
+    }
+  //		stringstream ss;
+  //		    ss<<"blob_"<< i << ".pcd";
+  //		    writer.write<pcl::PointXYZ >(ss.str(), *Cloud_Blob, false);
+  
+  
+  return 0;
+}//end of main
+
+
+
+
+
+
+

@@ -486,3 +486,38 @@ void FeatureExtract(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr blob_in,pcl::PointCl
   //cerr<<"temp="<<temp2.rows()<<" "<<temp2;
   *fvector = temp2;
 }
+
+//This function gets a point and a pointcloud with labels, look if there is a positive label around
+//that point in the pointcloud,
+bool LabelLookup(pcl::PointXYZRGBL point,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,float radius)
+
+{
+  pcl::search::KdTree<pcl::PointXYZRGBL> tree;
+  vector<int>   IdRadiusSearch;
+  vector<float> Sdistance;
+  bool label = 0;
+
+  tree.setInputCloud(cloud_in);
+  if(tree.radiusSearch(point,radius,IdRadiusSearch,Sdistance) > 0)
+
+    {
+	  for (size_t i = 0; i < IdRadiusSearch.size(); i++)
+		  {
+		  //cout<<"i: "<<i<<"index: "<<IdRadiusSearch[i]<<endl;
+		  if(cloud_in->points[IdRadiusSearch[i]].label == 1)
+		  {
+			  label = 1;
+			  return(label);
+		  }
+
+		  }
+      //cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+    }
+  else
+    cerr<<"Not enough points in the neighborhood!"<<endl;
+
+
+  return(label);
+
+}
+

@@ -27,7 +27,7 @@ int main(int argc, char **argv)
   
   
 #define B_Radius  0.15         //Radius of the querypoint's blob
-#define OPoint_Radius 0.04     //Radius for a sphere around each generated OPoints to look for
+#define OPoint_Radius 0.05     //Radius for a sphere around each generated OPoints to look for
                                //Actual annotated object points.
 float ObjRadius = 0.15;        // Approximate radius for object, here for Trash bin.
 float Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
@@ -98,6 +98,11 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
+  //Generating a template for Search cloud,which would be translated based on
+     //the given center(QPoints) in the loop.
+  CloudGenerate(S_Radius,NumofLayers,Search_Cloud);
+
+
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
@@ -110,46 +115,19 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
 
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
-	      //if(TofOperation == "train")
-	      //{
-	      //SBlobInd = BlobExtract(QPoint,Cloud_Filtered2,S_Radius,Search_Cloud);
-	      //}
-	      //else
-	      //if(TofOperation == "test")
-	      //{
-	      //SBlobInd = BlobExtract(QPoint,TFPcloud,S_Radius,Search_Cloud);
-	      //}
-	      //cout<<"blob size: "<<Cloud_Blob->points.size()<<endl;
-	      //cout<<"search size: "<<Search_Cloud->points.size()<<endl;
-	      CloudGenerate(QPoint,S_Radius,NumofLayers,Search_Cloud);
-	      
 	      for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
 		{
-		  OPoint = Search_Cloud->points[j];
+	    	  //Does the translation
+		  OPoint.x = Search_Cloud->points[j].x + QPoint.x;
+		  OPoint.y = Search_Cloud->points[j].y + QPoint.y;
+		  OPoint.z = Search_Cloud->points[j].z + QPoint.z;
+
 		  InterestPoints[1] = j;
 
 		  
 		  if (TofOperation == "train")
 		    {
-//		      if(OPoint.label == 1)
-//			{
-//			  CofSample = 1;
-//			  PosSample ++;
-//			}
-//		      else if(OPoint.label == 255)// the default value for the label is 255
-//			{
-//			  CofSample = -1;
-//			  NegSample ++;
-//			}
-//		      else
-//			{
-//			  //cerr<<"There is more than two class!!!"<<endl;
-//			  //cout<<"object point label = "<<OPoint.label<<endl;
-//			  CofSample = -1;
-//			  Noclass ++;
-//			  //return(-1);
-//			}
-//		      //cout<<"class of sample is: "<<CofSample<<endl;
+			  cout<<"Generated OPoint number: "<<j<<endl;
 			  if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
 			  {
 				  CofSample = 1;

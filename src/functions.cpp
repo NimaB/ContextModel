@@ -551,6 +551,7 @@ void FeatureExtract(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr blob_in,pcl::PointCl
   *fvector = temp2;
 }
 
+//-------------------------------------------------------------------------
 //This function gets a point and a pointcloud with labels, look if there is a positive label around
 //that point in the pointcloud,
 bool LabelLookup(pcl::PointXYZRGBL point,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,float radius)
@@ -584,4 +585,40 @@ bool LabelLookup(pcl::PointXYZRGBL point,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr
   return(label);
 
 }
+
+//--------------------------------------------------------------------------------------
+//This function get a list of object points' indices based on their label and also get
+  //their 3D centriod which is supposed to be the centroid of the object.
+pcl::PointXYZRGBL GetObjCenter(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,u_int LabelValue)
+		{
+			//vector<int> OpointList;
+			Vector4f center;
+			pcl::PointXYZRGBL centerpoint;
+	        pcl::PointIndices::Ptr ListOut (new pcl::PointIndices ());
+
+
+			for(size_t i = 0; i < cloud_in->points.size(); i++)
+			{
+				if(cloud_in->points[i].label == LabelValue)
+					//OpointList.push_back(i);
+					ListOut->indices.push_back(i);
+			}
+			center.setZero(4);
+			for(size_t j = 0; j < ListOut->indices.size(); j++)
+			{
+				center[0] += cloud_in->points[ListOut->indices[j]].x;
+				center[1] += cloud_in->points[ListOut->indices[j]].y;
+				center[2] += cloud_in->points[ListOut->indices[j]].z;
+			}
+			center /= int (ListOut->indices.size());
+
+			centerpoint.x = center[0];
+			centerpoint.y = center[1];
+			centerpoint.z = center[2];
+			centerpoint.label = 1;
+
+			return(centerpoint);
+		}
+//--------------------------------------------------------------------------------------
+
 

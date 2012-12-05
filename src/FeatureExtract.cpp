@@ -15,7 +15,7 @@ int main(int argc, char **argv)
   //eighth is the path of FullTrainDataset labels
   //REMOVED:ninth   is the path of the TFPcloud
 
-  
+//Cloud Declarations:-----------------------------------------
   //cloud is the input cloud with the point type PointXYZ
   //cloud_labeled is the input cloud with the type PointXYZRGBL which also contains labels from annotation
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_labeled (new pcl::PointCloud<pcl::PointXYZRGBL>);
@@ -24,22 +24,26 @@ int main(int argc, char **argv)
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
+//-------------------------------------------------------------
   
-  
+
 #define B_Radius  0.15         //Radius of the querypoint's blob
 #define OPoint_Radius 0.05     //Radius for a sphere around each generated OPoints to look for
                                //Actual annotated object points.
-float ObjRadius = 0.15;        // Approximate radius for object, here for Trash bin.
-float Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
-float S_Radius = 2 * ObjRadius;// Sphere around each quary point for generating candidate OPoints.
-int NumofLayers = 2;           // Number of layers of points for generated sphere.
-  
+float   ObjRadius    = 0.15;        // Approximate radius for object, here for Trash bin.
+float   Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
+float   S_Radius     = 2 * ObjRadius;// Sphere around each quary point for generating candidate OPoints.
+int     NumofLayers  = 2;           // Number of layers of points for generated sphere.
+float   ObjNeighbourRadius = S_Radius+ObjRadius;
+
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
   VectorXf FVector;
   pcl::PointXYZRGBL QPoint;//query point
   pcl::PointXYZRGBL OPoint;//object point
+  pcl::PointXYZRGBL ObjCenter;
   bool OverWrite;
+  bool InNeighborhood;//Aflag to show if Qpoint is in neighborhood of the object
   int CofSample = 0;
   int PosSample = 0;
   int NegSample = 0;
@@ -80,6 +84,8 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
   
   //--------------------------------------------------------------
   // Create the filtering object: downsample the dataset using a leaf size of 3cm
+  cout<<"Downsampling pointcloud with radius= "<<Voxel_Radius<<"..."<<endl;
+
   pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
   sor.setInputCloud (Cloud_labeled);
   //sor.setLeafSize (0.03f, 0.03f, 0.03f);
@@ -88,6 +94,7 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
   
   //In case the point of interest for us is OPoint we save Cloud_Filtered2, if it is QPoint then
   // Cloud_Filtered should be saved for later result visualization.
+  cout<<"Saving Downsampled pointcloud... "<<endl;
   if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered) == -1)
     {
       PCL_ERROR("Cloud2 save fail!");
@@ -101,13 +108,19 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
   //Generating a template for Search cloud,which would be translated based on
      //the given center(QPoints) in the loop.
   CloudGenerate(S_Radius,NumofLayers,Search_Cloud);
-
-
+ 
+  if (TofOperation == "train")
+  {
+	  cout<<"Looking for annotated Object center..."<<endl;
+	  ObjCenter = GetObjCenter(Cloud_labeled,1);
+  }
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
       cerr<<"Query point number: "<<i<<"out of "<<Cloud_Filtered->points.size()<<endl;
       QPoint = Cloud_Filtered->points[i];
+      InNeighborhood = 0;
+      
       if((QPoint.label != 1) || (TofOperation == "test")) // here we make sure that query point it self is not a part of an object.
 	{
     	  InterestPoints[0] = (int)i;
@@ -115,6 +128,13 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
 
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
+		  if (TofOperation == "train")
+		  {
+			  if (pcl::euclideanDistance(ObjCenter,QPoint) <= ObjNeighbourRadius)
+				  InNeighborhood = 1;
+			  	  cout<<"QPoint is in neighborhood of object!"<<endl;
+		  }
+		  
 	      for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
 		{
 	    	  //Does the translation
@@ -123,22 +143,30 @@ int NumofLayers = 2;           // Number of layers of points for generated spher
 		  OPoint.z = Search_Cloud->points[j].z + QPoint.z;
 
 		  InterestPoints[1] = j;
-
+		  cout<<"Generated OPoint number: "<<j<<endl;
 		  
 		  if (TofOperation == "train")
 		    {
-			  cout<<"Generated OPoint number: "<<j<<endl;
-			  if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
+
+			  if (InNeighborhood)
 			  {
-				  CofSample = 1;
-				  PosSample ++;
+				  if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
+				  {
+					  CofSample = 1;
+					  PosSample ++;
+				  }
+				  else
+				  {
+					  CofSample = -1;
+					  NegSample ++;
+				  }
 			  }
 			  else
-			  {
+			  	{
 			  	  CofSample = -1;
 			  	  NegSample ++;
-			  }
-
+			  	}
+			  
 		    }
 		  
 		  FeatureExtract(Cloud_Blob,Cloud_Blob_Norm,OPoint,  &FVector);

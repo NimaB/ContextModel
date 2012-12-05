@@ -47,3 +47,18 @@ void BlobExtract(pcl::PointXYZRGBL qpoint,pcl::PointCloud<pcl::PointXYZRGBL>::Pt
 
 
 //-----------------------------------------------------------------------------------
+void BlobExtract(pcl::PointXYZRGBL objpoint,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,float radius,pcl::PointIndices::Ptr inliers)
+
+{
+  pcl::search::KdTree<pcl::PointXYZRGBL> tree;
+  vector<float> Sdistance;
+
+  tree.setInputCloud(cloud_in);
+  if(tree.radiusSearch(objpoint,radius,inliers->indices,Sdistance) > 0)
+    {
+
+    }
+  else
+    cerr<<"Not enough points in the neighborhood!"<<endl;
+
+}

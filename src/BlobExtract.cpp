@@ -1,6 +1,7 @@
 //function BlobExtract
 //Inputs: querypoint, input pointcloud, search radius
 //Outputs: output pointcloud
+
 using namespace std;
 
 vector<int> BlobExtract(pcl::PointXYZRGBL qpoint,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,float radius,pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_out)
@@ -62,3 +63,22 @@ void BlobExtract(pcl::PointXYZRGBL objpoint,pcl::PointCloud<pcl::PointXYZRGBL>::
     cerr<<"Not enough points in the neighborhood!"<<endl;
 
 }
+
+//-----------------------------------------------------------------------------------
+
+void BlobExtract(pcl::PointXYZRGBL qpoint,pcl::search::KdTree<pcl::PointXYZRGBL>::Ptr treeIn,float radius)
+
+{
+  vector<float> Sdistance,idradiussearch;
+
+//  if((treeIn->radiusSearch(qpoint,radius,idradiussearch,Sdistance)) > 0)
+//    {
+//      //cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+//    }
+//  else
+//    cerr<<"Not enough points in the neighborhood!"<<endl;
+//
+
+}
+
+

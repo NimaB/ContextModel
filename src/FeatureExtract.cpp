@@ -14,6 +14,7 @@ int main(int argc, char **argv)
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
   //REMOVED:ninth   is the path of the TFPcloud
+	//ninth: index for object center
 
 //Cloud Declarations:-----------------------------------------
   //cloud is the input cloud with the point type PointXYZ
@@ -34,7 +35,7 @@ float   ObjRadius    = 0.15;        // Approximate radius for object, here for T
 float   Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
 float   S_Radius     = 2 * ObjRadius;// Sphere around each quary point for generating candidate OPoints.
 int     NumofLayers  = 2;           // Number of layers of points for generated sphere.
-float   ObjNeighbourRadius = S_Radius+ObjRadius;
+float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we added 0.1
 
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
@@ -53,6 +54,7 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
   //and OPoint. InterestPoints = [QPoint,OPoint]
   
   //Loading the input pointcloud
+  cout<<"Loading the input cloud..."<<endl;
   if ((pcl::io::loadPCDFile(argv[2], *Cloud_labeled)) == -1)
     {
       PCL_ERROR("Couldn't read the file \n");
@@ -102,6 +104,11 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
   
   cerr<<"Number of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
   //---------------------------------------------------------------
+  //Creating the Kdtree object for blob extraction
+  pcl::search::KdTree<pcl::PointXYZRGBL> tree; //(new pcl::search::KdTree<pcl::PointXYZRGBL>);
+  tree.setInputCloud(Cloud_labeled);
+
+  //---------------------------------------------------------------
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
@@ -111,10 +118,19 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
  
   if (TofOperation == "train")
   {
-	  cout<<"Looking for annotated Object center..."<<endl;
-	  ObjCenter = GetObjCenter(Cloud_labeled,1);
+	  //cout<<"Looking for annotated Object center..."<<endl;
+	  //ObjCenter = GetObjCenter(Cloud_labeled,1);
+
+	  ObjCenter = Cloud_labeled->points[atoi(argv[9])];
+	  cout<<"objcenter = ("<<ObjCenter.x<<","<<ObjCenter.y<<","<<ObjCenter.z<<")"<<endl;
   }
+
+
+  float d = 0;
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
+  vector<int>   IdRadiusSearch;
+  vector<float> Sdistance;
+
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
       cerr<<"Query point number: "<<i<<"out of "<<Cloud_Filtered->points.size()<<endl;
@@ -124,15 +140,29 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
       if((QPoint.label != 1) || (TofOperation == "test")) // here we make sure that query point it self is not a part of an object.
 	{
     	  InterestPoints[0] = (int)i;
-	  BlobExtract(QPoint,Cloud_labeled,Cloud_Norm,B_Radius,Cloud_Blob,Cloud_Blob_Norm);
+      //======================================================================================
+	  //BlobExtract(QPoint,Cloud_labeled,Cloud_Norm,B_Radius,Cloud_Blob,Cloud_Blob_Norm);
+    	  if(tree.radiusSearch(QPoint,B_Radius,IdRadiusSearch,Sdistance) > 0)
+    	      {
+    	        //cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+    	      }
+    	    else
+    	      cerr<<"Not enough points in the neighborhood!"<<endl;
+    	  pcl::copyPointCloud(*Cloud_labeled,IdRadiusSearch,*Cloud_Blob);
+    	  pcl::copyPointCloud(*Cloud_Norm,IdRadiusSearch,*Cloud_Blob_Norm);
+      //======================================================================================
 
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
 		  if (TofOperation == "train")
 		  {
-			  if (pcl::euclideanDistance(ObjCenter,QPoint) <= ObjNeighbourRadius)
+			  d = pcl::euclideanDistance(ObjCenter,QPoint);
+			  cout<<"distance between Qpoint and objcenter is :"<<d<<endl;
+			  if (d <= ObjNeighbourRadius)
+			  {
 				  InNeighborhood = 1;
 			  	  cout<<"QPoint is in neighborhood of object!"<<endl;
+			  }
 		  }
 		  
 	      for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
@@ -150,7 +180,30 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
 
 			  if (InNeighborhood)
 			  {
-				  if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
+				  //========================================================
+				  bool label = 0;
+				    if(tree.radiusSearch(OPoint,OPoint_Radius,IdRadiusSearch,Sdistance) > 0)
+
+				      {
+				  	  for (size_t i = 0; i < IdRadiusSearch.size(); i++)
+				  		  {
+				  		  //cout<<"i: "<<i<<"index: "<<IdRadiusSearch[i]<<endl;
+				  		  if(Cloud_labeled->points[IdRadiusSearch[i]].label == 1)
+				  		  {
+				  			  label = 1;
+				  			  //return(label);
+				  			  break;
+				  		  }
+
+				  		  }
+				        //cout<<"Points count= "<<IdRadiusSearch.size()<<endl;
+				      }
+				    else
+				      cerr<<"Not enough points in the neighborhood!"<<endl;
+
+				  //========================================================
+				  //if(LabelLookup(OPoint,Cloud_labeled,OPoint_Radius) == 1)
+				    if(label == 1)
 				  {
 					  CofSample = 1;
 					  PosSample ++;
@@ -201,7 +254,7 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius;
   if(TofOperation == "train")
     cout <<"Positive Samples :"<<PosSample<<endl<<"Negative Samples: " << NegSample << endl<<
       "No Class : "<< Noclass<<endl;
-  
+
   return 0;
 
 }//end of main

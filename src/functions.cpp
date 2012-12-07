@@ -607,8 +607,11 @@ pcl::PointXYZRGBL GetObjCenter(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud_in,
 			for(size_t j = 0; j < ListOut->indices.size(); j++)
 			{
 				center[0] += cloud_in->points[ListOut->indices[j]].x;
+				cout<<"x= "<<cloud_in->points[ListOut->indices[j]].x<<endl;
 				center[1] += cloud_in->points[ListOut->indices[j]].y;
+				cout<<"y= "<<cloud_in->points[ListOut->indices[j]].y<<endl;
 				center[2] += cloud_in->points[ListOut->indices[j]].z;
+				cout<<"z= "<<cloud_in->points[ListOut->indices[j]].z<<endl;
 			}
 			center /= int (ListOut->indices.size());
 

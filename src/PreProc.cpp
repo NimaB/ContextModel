@@ -15,7 +15,7 @@ int main(int argc, char **argv)
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBL>);
   
   float a;
-  a= 1.21;// for test(will be removed later)
+  a= 1.23;// for test(will be removed later)
   
   if(argc < 5)
     {
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 	  cout<<"sensor height estimated to be: "<< a<<endl;
 	  cout<<"Transferring PointCloud..."<<endl;
 	  
-	  pcl::transformPointCloud(*cloud,*cloud,pcl::getTransformation(a,0,0,ALFA,BETHA,GAMA));
+	  pcl::transformPointCloud(*cloud,*cloud,pcl::getTransformation(0,0,a,ALFA,BETHA,GAMA));
 	  
 	  cerr<<"Number of points in the input cloud after transfer: "<< cloud->size()<<endl;
 	  
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 	    
 	    cout<<"sensor height estimated to be: "<< a<<endl;
 	    cout<<"Transferring PointCloud..."<<endl;
-	    pcl::transformPointCloud(*cloud2,*cloud2,pcl::getTransformation(a,0,0,ALFA,BETHA,GAMA));
+	    pcl::transformPointCloud(*cloud2,*cloud2,pcl::getTransformation(0,0,a,ALFA,BETHA,GAMA));
 	    
 	    cerr<<"Number of points in the input cloud after transfer: "<< cloud2->size()<<endl;
 	    

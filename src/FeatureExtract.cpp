@@ -1,5 +1,5 @@
 #include "functions.cpp"
-#include "BlobExtract.cpp"
+//#include "BlobExtract.cpp"
 
 
 
@@ -13,8 +13,8 @@ int main(int argc, char **argv)
   //Sixth  is the path of the data file to save labels of samples.
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
-  //REMOVED:ninth   is the path of the TFPcloud
-	//ninth: index for object center
+  //ninth: index for object center
+  //tenth   is the path of the TFPcloud
 
 //Cloud Declarations:-----------------------------------------
   //cloud is the input cloud with the point type PointXYZ
@@ -25,6 +25,9 @@ int main(int argc, char **argv)
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Cloud_Blob (new pcl::PointCloud<pcl::PointXYZRGBL>);
   pcl::PointCloud<pcl::Normal>::Ptr Cloud_Blob_Norm (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::PointXYZRGBL>::Ptr Search_Cloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
+  //cloud for Test with Full Points according the min max of the original cloud
+ 	  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr TFPcloud (new pcl::PointCloud<pcl::PointXYZRGBL>);
+
 //-------------------------------------------------------------
   
 
@@ -70,7 +73,15 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
     }
   cerr<<"Number of points in the input cloud_Norm: "<< Cloud_Norm->size()<<endl;
   
+  //Loading input TFP Cloud
+   if (pcl::io::loadPCDFile(argv[10], *TFPcloud) == -1)
+     {
+       PCL_ERROR("Couldn't read the file \n");
+       return (-1);
+     }
+   cerr<<"Number of points in the input TFP_cloud: "<< TFPcloud->size()<<endl;
   
+
   InterestPoints.resize(2);
   //----------------------------------------
   //Set operation type flag
@@ -96,11 +107,11 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
   
   //In case the point of interest for us is OPoint we save Cloud_Filtered2, if it is QPoint then
   // Cloud_Filtered should be saved for later result visualization.
-  cout<<"Saving Downsampled pointcloud... "<<endl;
-  if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered) == -1)
-    {
-      PCL_ERROR("Cloud2 save fail!");
-    }
+ // cout<<"Saving Downsampled pointcloud... "<<endl;
+  //if(pcl::io::savePCDFileASCII(argv[9],*Cloud_Filtered) == -1)
+    //{
+  //    PCL_ERROR("Cloud2 save fail!");
+//    }
   
   cerr<<"Number of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
   //---------------------------------------------------------------
@@ -108,13 +119,15 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
   pcl::search::KdTree<pcl::PointXYZRGBL> tree; //(new pcl::search::KdTree<pcl::PointXYZRGBL>);
   tree.setInputCloud(Cloud_labeled);
 
+  pcl::search::KdTree<pcl::PointXYZRGBL> TFPtree; //(new pcl::search::KdTree<pcl::PointXYZRGBL>);
+  TFPtree.setInputCloud(TFPcloud);
   //---------------------------------------------------------------
   
   vector<int> SBlobInd;// this vector will keep the indices of extract blob for search.
   
   //Generating a template for Search cloud,which would be translated based on
      //the given center(QPoints) in the loop.
-  CloudGenerate(S_Radius,NumofLayers,Search_Cloud);
+  //CloudGenerate(S_Radius,NumofLayers,Search_Cloud);
  
   if (TofOperation == "train")
   {
@@ -130,6 +143,9 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
   //choose query point from the downsampled pointcloud but for the rest of the process we would use the original pointcloud
   vector<int>   IdRadiusSearch;
   vector<float> Sdistance;
+  //--------------------------
+  vector<int>   IdKSearch;
+  vector<float> SKdistance;
 
   for (size_t i =0; i < Cloud_Filtered->points.size() ; i++)
     {
@@ -154,6 +170,18 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
 
 	  if ( Cloud_Blob->size() >= BPnTresh)
 	    {
+		  //=============================================================================
+		  //This part take a fixed number of points from qpoint neighborhood
+		  if(TFPtree.nearestKSearch(QPoint,25,IdKSearch,SKdistance) > 0)
+		      	      {
+		      	        //cout<<"Points count= "<<IdKSearch.size()<<endl;
+		      	      }
+		  else
+		  {
+			  cout<<"Not enough points in TFP..."<<endl;
+			  //continue;
+		  }
+
 		  if (TofOperation == "train")
 		  {
 			  d = pcl::euclideanDistance(ObjCenter,QPoint);
@@ -165,14 +193,17 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
 			  }
 		  }
 		  
-	      for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
+	      //for(size_t j = 0; j < Search_Cloud->points.size(); ++j)
+	    for(size_t j = 0; j < IdKSearch.size(); ++j)
 		{
 	    	  //Does the translation
-		  OPoint.x = Search_Cloud->points[j].x + QPoint.x;
-		  OPoint.y = Search_Cloud->points[j].y + QPoint.y;
-		  OPoint.z = Search_Cloud->points[j].z + QPoint.z;
+//		  OPoint.x = Search_Cloud->points[j].x + QPoint.x;
+//		  OPoint.y = Search_Cloud->points[j].y + QPoint.y;
+//		  OPoint.z = Search_Cloud->points[j].z + QPoint.z;
 
-		  InterestPoints[1] = j;
+	      OPoint = TFPcloud->points[IdKSearch[j]];
+		  //InterestPoints[1] = j;
+	      InterestPoints[1] = IdKSearch[j];
 		  cout<<"Generated OPoint number: "<<j<<endl;
 		  
 		  if (TofOperation == "train")

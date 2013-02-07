@@ -4,6 +4,7 @@
 #include <time.h>
 #include "functions.cpp"
 
+#define Threshold 0 //This is threshold for probablity for positive points
 
 void Vis (pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals,int VP)
 {
@@ -58,6 +59,11 @@ void Vis (pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
 
 
 //First argument will choose 1:cloud+normals or 2:result visualization
+//Second argument is the path of the input cloud
+//Third argument depends on value of first argument:
+		//1:path of cloud normal
+		//2:path of score vector
+//Fourth argument is path of the original cloud when showing the results
 int main(int argc, char **argv) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::PointCloud<pcl::PointXYZRGBL>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBL>);
@@ -88,30 +94,55 @@ else
 				      return (-1);
 				    }
 
+		if ((pcl::io::loadPCDFile(argv[4], *cloud)) == -1)
+						    {
+						      PCL_ERROR("Couldn't read the pointcloud file \n");
+						      return (-1);
+						    }
 //---------------------------------------------------------------
-		std::cout<<"Down sampling the pointcloud ..."<<std::endl;
-		pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
-		  sor.setInputCloud (cloud2);
-		  sor.setLeafSize (0.03f, 0.03f, 0.03f);
-		  sor.filter (*cloud2);
+		//std::cout<<"Down sampling the pointcloud ..."<<std::endl;
+		//pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
+		//sor.setInputCloud (cloud2);
+		//sor.setLeafSize (0.03f, 0.03f, 0.03f);
+		//sor.filter (*cloud2);
 //---------------------------------------------------------------
 //		labels = ReadFileToVector(argv[3]);
 //		IntPoints = ReadFileToVector(argv[4]);
 
+// building the search tree
+		pcl::search::KdTree<pcl::PointXYZRGB> tree; 
+		tree.setInputCloud(cloud);
+		  
+		
 		  std::cout<<"loading the Score List ..."<<std::endl;
 		  ScoreList = ReadFileToVector(argv[3]);
 
 		int NofPositive = 0;
 		int NofNegative = 0;
 
-		for(size_t i = 0;i < cloud2->points.size(); i++)
+		vector<int>   IdRadiusSearch;
+		vector<float> Sdistance;
+		pcl::PointXYZRGB tpoint;
+		
+		//for(size_t i = 0;i < cloud2->points.size(); i++)
+		for(size_t i = 0;i < ScoreList.size(); i++)
 		{
 			std::cout<<"test i = "<<i<<std::endl;
-			cloud2->points[i].label = 255;
+			cloud2->points[i].label = 0;
 			std::cout<<"test label "<<i<<std::endl;
-			if(ScoreList[i] > 0)
+			if(ScoreList[i] > Threshold)
 			{
-				cloud2->points[i].r = 255 - ScoreList[i];
+				//cloud2->points[i].r = 255 - ScoreList[i];
+				//cloud2->points[i].r = ceil((ScoreList[i] * 255));
+				tpoint.x = cloud2->points[i].x;
+				tpoint.y = cloud2->points[i].y;
+				tpoint.z = cloud2->points[i].z;
+				
+				if(tree.radiusSearch(tpoint,1,IdRadiusSearch,Sdistance) > 0 )
+					for (size_t j = 0; j < IdRadiusSearch.size(); j++)
+						cloud->points[IdRadiusSearch[j]].r = 1;//ceil((ScoreList[i] * 255));
+						
+				
 				NofPositive++;
 			}
 			else
@@ -128,6 +159,7 @@ else
 		  				 }
 
 		std::cout<<"Visualizing the pointcloud ..."<<std::endl;
+		Vis(cloud);
 		Vis(cloud2);
 
 		}

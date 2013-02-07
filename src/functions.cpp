@@ -20,7 +20,7 @@ using namespace Eigen;
 #define Lparam 0 // parameter for loading normals from a file
 // Euler angels
 #define ALFA  0
-#define BETHA ((PI/2) + (PI/6))
+#define BETHA (PI/6)
 #define GAMA  0
 
 #define PI 3.14159265
@@ -196,12 +196,12 @@ void CloudGenerate (float CloudRadius,int NumofLayers,pcl::PointCloud<pcl::Point
 
 }
 //-----------------------------------------------------------------------------------------
-void DownSample(pcl::PointCloud<pcl::PointXYZRGB>::Ptr in_cloud,pcl::PointCloud<pcl::PointXYZRGB>::Ptr out_cloud)
+void DownSample(pcl::PointCloud<pcl::PointXYZRGB>::Ptr in_cloud,float radius,pcl::PointCloud<pcl::PointXYZRGB>::Ptr out_cloud)
 {
   
   pcl::VoxelGrid<pcl::PointXYZRGB> sor;
   sor.setInputCloud (in_cloud);
-  sor.setLeafSize (0.03f, 0.03f, 0.03f);
+  sor.setLeafSize (radius, radius, radius);
   sor.filter (*out_cloud);
   
   
@@ -500,7 +500,7 @@ void FeatureExtract(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr blob_in,pcl::PointCl
   //compute the angel between this normal and the gravity vector.(9-11-12)
   
   //Vector4f GVector (0,1,0,0);
-  Vector3f GVector (0,1,0);
+  Vector3f GVector (0,0,1);
   Vector3f BlobCenter_norm (blob_norm_in->points[1].normal);
   //Vector4f BlobCenter,VP_P;
   //Vector4f vpoint;
@@ -519,7 +519,7 @@ void FeatureExtract(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr blob_in,pcl::PointCl
   //As the pointcloud is transfered into world's coordinate we can assume points z as their height.
   float AvHeight = 0;	int n_points = (int) blob_in->points.size();
   for(int i = 0; i < n_points; ++i)
-    AvHeight = AvHeight + blob_in->points[i].x;
+    AvHeight = AvHeight + blob_in->points[i].z;
   AvHeight = AvHeight/n_points;
   
   

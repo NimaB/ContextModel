@@ -2,7 +2,8 @@
 //annotaded context.
 #include "functions.cpp"
 #include "BlobExtract.cpp"
-
+//In this test use I am doing the focus and downsample on TFP
+//16-12-12
 int main(int argc, char **argv)
 {//First argument is the choice between train or test
 	  //Second input argument is the path of the input pointcloud
@@ -27,7 +28,7 @@ int main(int argc, char **argv)
 
 
 	  float B_Radius = 0.15;//Radius of the querypoint's blob
-	  float Voxel_Radius = (4/3) * B_Radius;//Radius used for voxel downsample.
+	  float Voxel_Radius = 0.15;//(4/3) * B_Radius;//Radius used for voxel downsample.
 	  float S_Radius = Voxel_Radius + 0.02;//Radius of the sphere to search object point in. It would depend on the object class
 	  //The added Offset is just to make sure that the voxeled point is inside the sphere
 
@@ -55,13 +56,19 @@ int main(int argc, char **argv)
 
 	  //Loading input pointcloud's Normals
 	  cout<<"Loading cloud Normals..."<<endl;
-	  if (pcl::io::loadPCDFile(argv[3], *Cloud_Norm) == -1)
+	  if (pcl::io::loadPCDFile(argv[3], *Cloud_Filtered) == -1)
 	    {
 	      PCL_ERROR("Couldn't read the file \n");
 	      return (-1);
 	    }
 	  cerr<<"Numer of points in the input cloud_Norm: "<< Cloud_Norm->size()<<endl;
 
+	  pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
+	  	  sor.setInputCloud (Cloud_Filtered);
+	  	  sor.setLeafSize (Voxel_Radius, Voxel_Radius, Voxel_Radius);
+	  	  sor.filter (*Cloud_Filtered);
+
+	  	  cout<<"Numer of points in the input cloud_filtered: "<< Cloud_Filtered->size()<<endl;
 
 	  InterestPoints.resize(2);
 	//----------------------------------------
@@ -76,9 +83,9 @@ int main(int argc, char **argv)
 	  //cout<<"test"<<endl;
 	  cout<<"type:"<<TofOperation<<endl;
 	 //----------------------------------------
-	  /*
-	   * This part can be used to kind of crop the point cloud to get a pointcloud focused around
-	   * the annotated Object with a given radius ( here we used 0.4)
+
+	   //* This part can be used to kind of crop the point cloud to get a pointcloud focused around
+	   //* the annotated Object with a given radius ( here we used 0.4)
 	  if(TofOperation == "train")
 	    {
 	      for (size_t i =0; i < Cloud_labeled->points.size() ; i++)
@@ -86,15 +93,21 @@ int main(int argc, char **argv)
 	  	  if(Cloud_labeled->points[i].label == 1)
 		    {
 		      cerr<<"The center selected index is : "<< i <<endl;
-		      BlobExtract(Cloud_labeled->points[i],Cloud_labeled,Cloud_Norm,0.40,Cloud_labeled,Cloud_Norm);
-		      if(pcl::io::savePCDFileASCII("Focused.pcd",*Cloud_labeled) == -1)
+		      //BlobExtract(Cloud_labeled->points[i],Cloud_labeled,Cloud_Norm,2,Cloud_labeled,Cloud_Norm);
+		      BlobExtract(Cloud_labeled->points[i],Cloud_Filtered,2.5,Cloud_Filtered);
+		      if(pcl::io::savePCDFileASCII("TFP_Focused.pcd",*Cloud_Filtered) == -1)
 			{
 			  PCL_ERROR("Focused save fail!");
 			}
+//		      if(pcl::io::savePCDFileASCII("Focused_normals.pcd",*Cloud_Norm) == -1)
+//		      			{
+//		      			  PCL_ERROR("Focused save fail!");
+//		      			}
 		      break;
 		    }
 		}
-	    }*/
+	    }
+	   /*
 	  //--------------------------------------------------------------
 // Create the filtering object: downsample the dataset using a leaf size of 3cm
 	  pcl::VoxelGrid<pcl::PointXYZRGBL> sor;
@@ -203,6 +216,6 @@ int main(int argc, char **argv)
 	  if(TofOperation == "train")
 	    cout <<"Positive Samples :"<<PosSample<<endl<<"Negative Samles: " << NegSample << endl<<
 	      "No Class : "<< Noclass<<endl;
-
+*/
 	  return 0;
 	}//end of main

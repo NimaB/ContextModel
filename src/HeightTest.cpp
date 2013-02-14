@@ -20,7 +20,7 @@ int main(int argc, char **argv)
 	//Quaternion<float> q;
 	//q = Quaternion<float> (-0.500398163355, 0.499999841466, -0.499601836645, 0.499999841466);
 	//pcl::transformPointCloud (*cloud, *cloud2, Eigen::Vector3f (0, 0, 0), q);
-	pcl::transformPointCloud(*cloud,*cloud2,pcl::getTransformation(0,0,1.23,0,PI/6,0));
+	//pcl::transformPointCloud(*cloud,*cloud2,pcl::getTransformation(0,0,1.23,0,PI/6,0));
 	//float *a;float *b;float *c;
 	//pcl::getEulerAngles(q,a,b,c);
 	int index = 0;

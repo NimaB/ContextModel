@@ -13,8 +13,10 @@ int main(int argc, char **argv)
   //Sixth  is the path of the data file to save labels of samples.
   //Seventh is the path of FullTrainDataset
   //eighth is the path of FullTrainDataset labels
-  //ninth: index for object center
-  //tenth   is the path of the TFPcloud
+  //ninth   is the path of the TFPcloud
+  //tenth: index for object center
+  //eleventh: ObjNeighbourRadius (In case we need the check for object neighbor to be ignored we can simply put a big value here.
+	                              //this is useful when we have more than one object.)
 
 //Cloud Declarations:-----------------------------------------
   //cloud is the input cloud with the point type PointXYZ
@@ -34,11 +36,15 @@ int main(int argc, char **argv)
 #define B_Radius  0.15         //Radius of the querypoint's blob
 #define OPoint_Radius 0.05     //Radius for a sphere around each generated OPoints to look for
                                //Actual annotated object points.
-float   ObjRadius    = 0.15;        // Approximate radius for object, here for Trash bin.
+float   ObjRadius    = 0.10;        // Approximate radius for object, here for Trash bin.
 float   Voxel_Radius = (4/3) * ObjRadius;//Radius used for voxel downsample.
 float   S_Radius     = 2 * ObjRadius;// Sphere around each quary point for generating candidate OPoints.
 int     NumofLayers  = 2;           // Number of layers of points for generated sphere.
 float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we added 0.1
+	if(argc>11)
+	{
+		ObjNeighbourRadius = atoi(argv[11]);
+	}
 
   const char* TofOperation;//to choose train or test.
   pcl::PCDWriter writer;
@@ -74,7 +80,7 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
   cerr<<"Number of points in the input cloud_Norm: "<< Cloud_Norm->size()<<endl;
   
   //Loading input TFP Cloud
-   if (pcl::io::loadPCDFile(argv[10], *TFPcloud) == -1)
+   if (pcl::io::loadPCDFile(argv[9], *TFPcloud) == -1)
      {
        PCL_ERROR("Couldn't read the file \n");
        return (-1);
@@ -133,9 +139,11 @@ float   ObjNeighbourRadius = S_Radius+ObjRadius+0.20;//for more confidance we ad
   {
 	  //cout<<"Looking for annotated Object center..."<<endl;
 	  //ObjCenter = GetObjCenter(Cloud_labeled,1);
-
-	  ObjCenter = Cloud_labeled->points[atoi(argv[9])];
-	  cout<<"objcenter = ("<<ObjCenter.x<<","<<ObjCenter.y<<","<<ObjCenter.z<<")"<<endl;
+	  //for(int icounter = 0; icounter < argc-10; icounter++)
+	  //{
+		  ObjCenter= Cloud_labeled->points[atoi(argv[10])];
+		  cout<<"objcenter = ("<<ObjCenter.x<<","<<ObjCenter.y<<","<<ObjCenter.z<<")"<<endl;
+	  //}
   }
 
 
